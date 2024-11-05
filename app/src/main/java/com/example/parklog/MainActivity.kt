@@ -1,121 +1,171 @@
 package com.example.parklog
 
 import android.os.Bundle
-import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.activity.viewModels
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.lifecycle.Observer
 
 class MainActivity : AppCompatActivity() {
 
-    private lateinit var deviceContainer: LinearLayout
-    private val viewModel: DeviceViewModel by viewModels()
+    private val devices = mutableListOf<String>() // 기기명 목록
+    private lateinit var dialog: AlertDialog // 다이얼로그 변수
+    private lateinit var deviceListContainer: LinearLayout // 기기 목록 컨테이너 변수
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
-        val addDeviceButton: Button = findViewById(R.id.addDeviceButton)
-        deviceContainer = findViewById(R.id.deviceContainer)
+        val deviceButton: Button = findViewById(R.id.DeviceButton)
 
-        // Add New Device 버튼 클릭 시 입력 창을 표시
-        addDeviceButton.setOnClickListener {
+        // 등록 버튼 클릭 시 팝업 창 표시
+        deviceButton.setOnClickListener {
             showAddDeviceDialog()
         }
-
-        // ViewModel의 devices 리스트를 관찰하여 UI 갱신
-        viewModel.devices.observe(this, Observer { devices ->
-            updateDeviceList(devices)
-        })
     }
 
     private fun showAddDeviceDialog() {
-        // 입력 창을 위한 EditText 생성
-        val editText = EditText(this).apply {
-            hint = "장치 이름을 입력하세요"
+        // 다이얼로그 레이아웃을 포함하는 LinearLayout 생성
+        val dialogLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(32, 32, 32, 32)
         }
 
-        // AlertDialog를 통해 입력 창 표시
-        AlertDialog.Builder(this)
-            .setTitle("새 장치 등록")
-            .setView(editText)
-            .setPositiveButton("등록") { _, _ ->
+        // 입력 창을 위한 EditText와 등록 버튼을 포함하는 Horizontal LinearLayout 생성
+        val inputLayout = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+
+        val editText = EditText(this).apply {
+            hint = "차량 블루투스 기기명 입력"
+            layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+        }
+
+        val addButton = Button(this).apply {
+            text = "등록"
+            setOnClickListener {
                 val deviceName = editText.text.toString()
                 if (deviceName.isNotBlank()) {
-                    viewModel.addDevice(deviceName)
+                    devices.add(deviceName)
+                    updateDeviceListInDialog() // 목록 갱신
+                    editText.text.clear()
                 }
             }
-            .setNegativeButton("취소", null)
-            .show()
-    }
-
-    private fun updateDeviceList(devices: List<String>) {
-        deviceContainer.removeAllViews()
-        devices.forEachIndexed { index, deviceName ->
-            val newDeviceLayout = createDeviceLayout(deviceName, index)
-            deviceContainer.addView(newDeviceLayout)
         }
-    }
 
-    private fun createDeviceLayout(deviceName: String, index: Int): LinearLayout {
-        val newDeviceLayout = LinearLayout(this).apply {
+        inputLayout.addView(editText)
+        inputLayout.addView(addButton)
+        dialogLayout.addView(inputLayout)
+
+        // 기기 목록을 표시할 LinearLayout 컨테이너 추가
+        deviceListContainer = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+        }
+        dialogLayout.addView(deviceListContainer)
+
+        // 초기 기기 목록을 다이얼로그에 표시
+        updateDeviceListInDialog()
+
+        // 하단에 취소 버튼만 포함하는 버튼 레이아웃 추가
+        val buttonLayout = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
+            setPadding(0, 16, 0, 0)
             layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT
-            )
-            setPadding(16, 16, 16, 16)
-        }
-
-        val deviceTextView = TextView(this).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                0,
-                ViewGroup.LayoutParams.WRAP_CONTENT,
-                1f
-            )
-            text = deviceName
-            textSize = 18f
-        }
-
-        val editButton = Button(this).apply {
-            text = "수정"
-            setOnClickListener {
-                showEditDialog(deviceName, index)
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                setMargins(0, 32, 0, 0)
             }
         }
 
-        val deleteButton = Button(this).apply {
-            text = "삭제"
+        val cancelButton = Button(this).apply {
+            text = "취소"
             setOnClickListener {
-                viewModel.removeDevice(index)
+                // 다이얼로그 닫기
+                dialog.dismiss()
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                weight = 1f
             }
         }
 
-        newDeviceLayout.addView(deviceTextView)
-        newDeviceLayout.addView(editButton)
-        newDeviceLayout.addView(deleteButton)
+        // 버튼 레이아웃에 취소 버튼만 추가하고, 오른쪽 아래로 배치
+        buttonLayout.addView(cancelButton)
+        dialogLayout.addView(buttonLayout)
 
-        return newDeviceLayout
+        // AlertDialog 생성 및 설정
+        dialog = AlertDialog.Builder(this)
+            .setTitle("차량 블루투스 기기 등록")
+            .setView(dialogLayout)
+            .create()
+
+        dialog.show()
     }
 
-    private fun showEditDialog(currentName: String, index: Int) {
-        val editText = EditText(this).apply {
-            setText(currentName.replace(" 🚗", ""))
-        }
+    private fun updateDeviceListInDialog() {
+        // 기존 목록 초기화
+        deviceListContainer.removeAllViews()
 
-        AlertDialog.Builder(this)
-            .setTitle("장치 이름 수정")
-            .setView(editText)
-            .setPositiveButton("확인") { _, _ ->
-                val newName = "${editText.text} 🚗"  // 수정된 이름에 이모지 추가
-                viewModel.updateDeviceName(index, newName)
+        // 각 기기명에 대해 순번을 포함하여 텍스트뷰와 수정/삭제 버튼 생성 및 추가
+        devices.forEachIndexed { index, deviceName ->
+            // 기기명을 담을 수평 레이아웃 생성
+            val deviceLayout = LinearLayout(this).apply {
+                orientation = LinearLayout.HORIZONTAL
             }
-            .setNegativeButton("취소", null)
-            .show()
+
+            // 자동차 이모티콘과 기기명을 포함한 텍스트뷰
+            val deviceTextView = TextView(this).apply {
+                text = "${index + 1}. $deviceName"
+                textSize = 16f
+                layoutParams =
+                    LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            }
+
+            // 수정 버튼
+            val editButton = Button(this).apply {
+                text = "수정"
+                setOnClickListener {
+                    // 수정 로직 (텍스트를 입력받아 변경)
+                    val editDialog = AlertDialog.Builder(this@MainActivity).apply {
+                        val editText = EditText(this@MainActivity).apply {
+                            setText(deviceName)
+                        }
+                        setTitle("기기명 수정")
+                        setView(editText)
+                        setPositiveButton("확인") { _, _ ->
+                            val newDeviceName = editText.text.toString()
+                            if (newDeviceName.isNotBlank()) {
+                                devices[index] = newDeviceName
+                                updateDeviceListInDialog() // 목록 갱신
+                            }
+                        }
+                        setNegativeButton("취소", null)
+                    }.create()
+                    editDialog.show()
+                }
+            }
+
+            // 삭제 버튼
+            val deleteButton = Button(this).apply {
+                text = "삭제"
+                setOnClickListener {
+                    devices.removeAt(index) // 목록에서 삭제
+                    updateDeviceListInDialog() // 목록 갱신
+                }
+            }
+
+            // 레이아웃에 텍스트뷰와 버튼 추가
+            deviceLayout.addView(deviceTextView)
+            deviceLayout.addView(editButton)
+            deviceLayout.addView(deleteButton)
+
+            // 컨테이너에 추가
+            deviceListContainer.addView(deviceLayout)
+        }
     }
 }
